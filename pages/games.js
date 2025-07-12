@@ -14,8 +14,8 @@ import {
 
 export default function Games() {
   const [players, setPlayers] = useState([
-    { name: 'あなた', score: '', rank: 1 },
-    { name: '友人', score: '', rank: 2 },
+    { name: '木田', score: '', rank: 1 },
+    { name: '木下', score: '', rank: 2 },
   ]);
   const [games, setGames] = useState([]);
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
