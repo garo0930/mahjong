@@ -8,117 +8,128 @@ import {
   query,
   orderBy,
   Timestamp,
+  deleteDoc,
+  doc,
 } from 'firebase/firestore';
 
 export default function Games() {
-  const [players, setPlayers] = useState(['あなた', '友人']);
-  const [scores, setScores] = useState(['', '']);
-  const [ranks, setRanks] = useState([1, 2]);
+  const [players, setPlayers] = useState([
+    { name: 'あなた', score: '', rank: 1 },
+    { name: '友人', score: '', rank: 2 },
+  ]);
   const [games, setGames] = useState([]);
-  const [isSaving, setIsSaving] = useState(false); // ✅ 保存中フラグ
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
 
-  const handleSubmit = async () => {
-    if (scores.some(score => score === '')) {
-      alert('素点をすべて入力してください。');
-      return;
-    }
+  const handleInputChange = (index, field, value) => {
+    const updatedPlayers = [...players];
+    updatedPlayers[index][field] = field === 'rank' ? parseInt(value) : value;
+    setPlayers(updatedPlayers);
+  };
 
-    setIsSaving(true); // ✅ 保存中に切り替え
-
-    const results = players.map((name, index) => ({
-      name,
-      score: parseInt(scores[index]),
-      rank: ranks[index],
+  const saveGame = async () => {
+    const results = players.map((p) => ({
+      name: p.name,
+      score: p.score === '' ? null : Number(p.score),
+      rank: p.rank,
     }));
 
-    const newGame = {
-      date: Timestamp.now(),
+    await addDoc(collection(db, 'games'), {
+      date: Timestamp.fromDate(new Date(date)),
       results,
-    };
+    });
 
-    try {
-      await addDoc(collection(db, 'games'), newGame);
-      alert('保存しました');
-      setGames([{ date: new Date().toLocaleDateString(), results }, ...games]);
-      setScores(['', '']);
-      setRanks([1, 2]);
-    } catch (error) {
-      console.error('保存エラー:', error);
-      alert('保存に失敗しました');
-    } finally {
-      setIsSaving(false); // ✅ 保存完了
+    setPlayers(players.map((p) => ({ ...p, score: '', rank: 1 })));
+    fetchGames(); // 保存後に再取得
+  };
+
+  const fetchGames = async () => {
+    const q = query(collection(db, 'games'), orderBy('date', 'desc'));
+    const querySnapshot = await getDocs(q);
+    const gamesList = querySnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+    setGames(gamesList);
+  };
+
+  const handleDelete = async (id) => {
+    if (confirm('この記録を削除しますか？')) {
+      await deleteDoc(doc(db, 'games', id));
+      setGames(games.filter((g) => g.id !== id));
     }
   };
 
   useEffect(() => {
-    const fetchGames = async () => {
-      const q = query(collection(db, 'games'), orderBy('date', 'desc'));
-      const querySnapshot = await getDocs(q);
-      const fetchedGames = querySnapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          date: data.date.toDate().toLocaleDateString(),
-          results: data.results,
-        };
-      });
-      setGames(fetchedGames);
-    };
-
     fetchGames();
   }, []);
 
   return (
-    <div className="p-4">
-      <h1 className="text-xl font-bold mb-4">麻雀成績入力</h1>
+    <div className="p-6">
+      <h1 className="text-xl font-bold mb-4">成績入力</h1>
 
-      {players.map((name, i) => (
-        <div key={i} className="mb-2 flex gap-4 items-center">
-          <span className="w-16">{name}</span>
+      <label className="block mb-2">
+        対局日：
+        <input
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          className="ml-2 border p-1"
+        />
+      </label>
+
+      {players.map((player, index) => (
+        <div key={index} className="mb-2 flex gap-2 items-center">
+          <span>{player.name}：</span>
           <input
             type="number"
-            className="border p-1 w-24"
+            value={player.score}
+            onChange={(e) =>
+              handleInputChange(index, 'score', e.target.value)
+            }
             placeholder="素点"
-            value={scores[i]}
-            onChange={(e) => {
-              const newScores = [...scores];
-              newScores[i] = e.target.value;
-              setScores(newScores);
-            }}
+            className="border p-1 w-24"
           />
           <select
+            value={player.rank}
+            onChange={(e) =>
+              handleInputChange(index, 'rank', e.target.value)
+            }
             className="border p-1"
-            value={ranks[i]}
-            onChange={(e) => {
-              const newRanks = [...ranks];
-              newRanks[i] = parseInt(e.target.value);
-              setRanks(newRanks);
-            }}
           >
             {[1, 2, 3, 4].map((r) => (
-              <option key={r} value={r}>{r}位</option>
+              <option key={r} value={r}>
+                {r}位
+              </option>
             ))}
           </select>
         </div>
       ))}
 
       <button
-        onClick={handleSubmit}
-        disabled={isSaving}
-        className={`px-4 py-2 rounded mt-4 text-white ${
-          isSaving ? 'bg-gray-400' : 'bg-blue-500 hover:bg-blue-600'
-        }`}
+        onClick={saveGame}
+        className="bg-blue-600 text-white px-4 py-2 mt-4 rounded hover:bg-blue-700"
       >
-        {isSaving ? '保存中…' : '保存'}
+        保存
       </button>
 
-      <hr className="my-6" />
-      <h2 className="text-lg font-semibold mb-2">記録一覧</h2>
-      {games.map((g, idx) => (
-        <div key={idx} className="mb-3 border p-3 rounded">
-          <div className="font-semibold mb-1">{g.date}</div>
-          {g.results.map((r, i) => (
-            <div key={i}>
-              {r.name} - 素点: {r.score}点 / 順位: {r.rank}位
+      <h2 className="text-lg font-bold mt-8">記録一覧</h2>
+
+      {games.map((game) => (
+        <div key={game.id} className="border p-4 my-2">
+          <div className="flex justify-between items-center">
+            <p className="text-sm text-gray-500">
+              {game.date?.toDate().toLocaleDateString()}
+            </p>
+            <button
+              onClick={() => handleDelete(game.id)}
+              className="text-red-600 hover:underline"
+            >
+              🗑️削除
+            </button>
+          </div>
+          {game.results.map((r, i) => (
+            <div key={i} className="pl-4">
+              {r.name}：{r.score ?? '—'}点（{r.rank}位）
             </div>
           ))}
         </div>
