@@ -16,14 +16,19 @@ export default function StatsPage() {
   }, []);
 
   const filterGamesByDate = (dateStr) => {
-    return games.filter(game => game.date === dateStr);
+    return games.filter(game => {
+      const gameDate =
+        typeof game.date === 'string'
+          ? game.date
+          : game.date?.toDate?.().toISOString().split('T')[0];
+      return gameDate === dateStr;
+    });
   };
 
   const calculateStats = (data) => {
     const stats = {};
     data.forEach(game => {
       if (!game.scores) return;
-
       Object.entries(game.scores).forEach(([player, scoreInfo]) => {
         const { score = 0, rank } = scoreInfo;
         if (!stats[player]) {
