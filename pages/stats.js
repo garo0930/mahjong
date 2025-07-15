@@ -22,6 +22,8 @@ export default function StatsPage() {
   const calculateStats = (data) => {
     const stats = {};
     data.forEach(game => {
+      if (!game.scores) return;
+
       Object.entries(game.scores).forEach(([player, scoreInfo]) => {
         const { score = 0, rank } = scoreInfo;
         if (!stats[player]) {
