@@ -9,47 +9,48 @@ export default function StatsPage() {
   useEffect(() => {
     const fetchData = async () => {
       const querySnapshot = await getDocs(collection(db, 'games'));
-      const data = querySnapshot.docs.map(doc => doc.data());
+      const data = querySnapshot.docs.map(doc => {
+        const game = doc.data();
+        return {
+          ...game,
+          date: game.date?.toDate().toISOString().split('T')[0] || '',
+        };
+      });
       setGames(data);
     };
     fetchData();
   }, []);
 
   const filterGamesByDate = (dateStr) => {
-    return games.filter(game => {
-      const gameDate =
-        typeof game.date === 'string'
-          ? game.date
-          : game.date?.toDate?.().toISOString().split('T')[0];
-      return gameDate === dateStr;
-    });
+    return games.filter(game => game.date === dateStr);
   };
 
   const calculateStats = (data) => {
     const stats = {};
     data.forEach(game => {
-      if (!game.scores) return;
-      Object.entries(game.scores).forEach(([player, scoreInfo]) => {
-        const { score = 0, rank } = scoreInfo;
-        if (!stats[player]) {
-          stats[player] = {
+      if (!game.results || !Array.isArray(game.results)) return;
+      game.results.forEach(result => {
+        const { name, score = 0, rank } = result;
+        if (!name) return;
+        if (!stats[name]) {
+          stats[name] = {
             totalScore: 0,
             totalRank: 0,
             count: 0,
             rankCounts: [0, 0, 0, 0],
           };
         }
-        stats[player].totalScore += Number(score);
-        stats[player].totalRank += Number(rank);
-        stats[player].count += 1;
+        stats[name].totalScore += Number(score);
+        stats[name].totalRank += Number(rank);
+        stats[name].count += 1;
         if (rank >= 1 && rank <= 4) {
-          stats[player].rankCounts[rank - 1]++;
+          stats[name].rankCounts[rank - 1]++;
         }
       });
     });
 
-    return Object.entries(stats).map(([player, { totalScore, totalRank, count, rankCounts }]) => ({
-      player,
+    return Object.entries(stats).map(([name, { totalScore, totalRank, count, rankCounts }]) => ({
+      player: name,
       avgScore: (totalScore / count).toFixed(1),
       avgRank: (totalRank / count).toFixed(2),
       totalRankPoint: totalRank,
